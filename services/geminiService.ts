@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { StoryParams, Scene, Character } from '../types';
 
 // The API key is provided by the environment variable `process.env.API_KEY`.
@@ -31,47 +31,6 @@ const handleGoogleAIError = (error: any): string => {
 };
 
 
-const storySchema = {
-    type: Type.OBJECT,
-    properties: {
-        title: {
-            type: Type.STRING,
-            description: "A short, catchy title for the story."
-        },
-        scenes: {
-            type: Type.ARRAY,
-            description: "The different scenes that make up the story.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    text: {
-                        type: Type.STRING,
-                        description: "The narrative text for this scene."
-                    },
-                    imagePrompt: {
-                        type: Type.STRING,
-                        description: "A detailed, descriptive prompt for an AI image generator to create a visual for this scene. The prompt should describe characters, setting, and action in a whimsical, vibrant, and friendly art style suitable for a children's book. Do not include any story text in this prompt."
-                    }
-                },
-                required: ["text", "imagePrompt"]
-            }
-        },
-        characters: {
-            type: Type.ARRAY,
-            description: "A list of the main characters in the story.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    name: { type: Type.STRING, description: "The character's name." },
-                    description: { type: Type.STRING, description: "A short physical description of the character for an image generator (e.g., 'a small brown mouse with a red scarf')." }
-                },
-                required: ["name", "description"]
-            }
-        }
-    },
-    required: ["title", "scenes", "characters"]
-};
-
 export const generateStoryContent = async (params: StoryParams): Promise<{title: string; scenes: Omit<Scene, 'id' | 'imageUrl'>[]; characters: Omit<Character, 'imageUrl'>[]}> => {
   const prompt = `
     Generate a short, engaging, and age-appropriate story for a ${params.age}-year-old ${params.gender}. The story's theme should be "${params.theme}".
@@ -79,7 +38,7 @@ export const generateStoryContent = async (params: StoryParams): Promise<{title:
     The story should be broken down into 4 to 6 scenes.
     The tone should be magical, heartwarming, and full of wonder.
     The story must be in ${params.language}.
-    Structure the output as a JSON object that strictly follows the provided schema.
+    Structure the output as a single JSON object with the following keys: "title" (a string), "scenes" (an array of objects, where each object has "text" and "imagePrompt" string keys), and "characters" (an array of objects, where each object has "name" and "description" string keys). Do not include any other text or markdown formatting outside of the JSON object.
   `;
 
   try {
@@ -88,7 +47,6 @@ export const generateStoryContent = async (params: StoryParams): Promise<{title:
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        responseSchema: storySchema,
         temperature: 0.8,
       },
     });
