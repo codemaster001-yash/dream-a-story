@@ -1,0 +1,20 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom base styles can go here */
+body {
+  font-family: 'Nunito', sans-serif;
+}
+
+/* Hide scrollbars for a cleaner look */
+/* For Chrome, Safari and Opera */
+::-webkit-scrollbar {
+  display: none;
+}
+/* For IE, Edge and Firefox */
+body {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
