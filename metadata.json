@@ -1,0 +1,6 @@
+{
+  "name": "Dream a Story",
+  "description": "A magical app that uses AI to generate personalized, illustrated stories for children. Kids can choose a theme and characters, and the app creates a unique story with beautiful images and read-aloud audio.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
