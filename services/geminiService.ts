@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { StoryParams, Scene, Character } from '../types';
 
@@ -7,6 +8,28 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const storyGenerationModel = "gemini-2.5-flash";
 const imageGenerationModel = 'imagen-3.0-generate-002';
+
+// A centralized error handler to provide user-friendly messages.
+const handleGoogleAIError = (error: any): string => {
+    const errorMessage = error.toString();
+    console.error("Google AI Error:", errorMessage);
+
+    if (errorMessage.includes("API key not valid")) {
+        return "The provided API Key is invalid. Please check your configuration.";
+    }
+    if (errorMessage.includes("429") || errorMessage.toLowerCase().includes("quota")) {
+        return "You've exceeded your request limit for the day. Please try again tomorrow.";
+    }
+    if (errorMessage.toLowerCase().includes("safety")) {
+        return "The request was blocked due to safety settings. Please try a different theme or prompt.";
+    }
+    if (errorMessage.includes("400")) {
+        return "The request was malformed. This might be a temporary issue, please try again.";
+    }
+
+    return "An unexpected error occurred while communicating with the AI. Please try again.";
+};
+
 
 const storySchema = {
     type: Type.OBJECT,
@@ -81,13 +104,13 @@ export const generateStoryContent = async (params: StoryParams): Promise<{title:
     return parsed;
 
   } catch (error) {
-    console.error("Error generating story content:", error);
-    throw new Error("Failed to create the story's plot. Please try a different theme.");
+    throw new Error(handleGoogleAIError(error));
   }
 };
 
 export const generateImage = async (prompt: string): Promise<string> => {
-    const fullPrompt = `${prompt}, in the style of a vibrant and whimsical children's book illustration, colorful, friendly characters, soft lighting, detailed and magical.`;
+    // Enhanced prompt for better safety and style consistency.
+    const fullPrompt = `charming storybook style, ${prompt}, in the style of a vibrant and whimsical children's book illustration, family-friendly, G-rated, safe-for-children, colorful, friendly characters, soft lighting, detailed and magical.`;
     try {
         const response = await ai.models.generateImages({
             model: imageGenerationModel,
@@ -103,16 +126,18 @@ export const generateImage = async (prompt: string): Promise<string> => {
             const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
             return `data:image/jpeg;base64,${base64ImageBytes}`;
         } else {
-            throw new Error("No image was generated.");
+            throw new Error("API returned no images for the prompt.");
         }
     } catch (error) {
-        console.error("Error generating image:", error);
-        throw new Error("Failed to create an image for a scene.");
+        console.error(`Failed to generate image for prompt "${prompt}"`, error);
+        // Re-throw a new error with a user-friendly message.
+        throw new Error(handleGoogleAIError(error));
     }
 };
 
 export const generateCharacterImage = async (description: string): Promise<string> => {
-    const prompt = `Cute character portrait of ${description}, circular frame, whimsical children's book illustration style, vibrant colors, simple background.`;
+    // Enhanced prompt for safety and consistency.
+    const prompt = `Cute character portrait of ${description}, family-friendly, G-rated, safe-for-children, circular frame, whimsical children's book illustration style, charming, vibrant colors, simple background.`;
      try {
         const response = await ai.models.generateImages({
             model: imageGenerationModel,
@@ -128,10 +153,11 @@ export const generateCharacterImage = async (description: string): Promise<strin
             const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
             return `data:image/jpeg;base64,${base64ImageBytes}`;
         } else {
-            throw new Error("No character image was generated.");
+            throw new Error("API returned no images for the character description.");
         }
     } catch (error) {
-        console.error("Error generating character image:", error);
-        throw new Error("Failed to create an image for a character.");
+        console.error(`Failed to generate character image for description "${description}"`, error);
+        // Re-throw a new error with a user-friendly message.
+        throw new Error(handleGoogleAIError(error));
     }
 }

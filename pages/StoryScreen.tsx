@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -58,7 +59,7 @@ const StoryScreen: React.FC = () => {
   const goToPrevScene = useCallback(() => {
       setCurrentSceneIndex(prev => {
           if (prev > 0) {
-              return prev - 1;
+              return prev + 1;
           }
           return prev;
       });
@@ -102,29 +103,50 @@ const StoryScreen: React.FC = () => {
         setStory(newStory);
         setCurrentSceneIndex(0);
         
+        // --- ROBUST SCENE IMAGE GENERATION ---
         setLoadingState('generating_images');
         const imagePromises = newStory.scenes.map(scene => generateImage(scene.imagePrompt));
-        const imageUrls = await Promise.all(imagePromises);
+        const imageResults = await Promise.allSettled(imagePromises);
+        
+        // If all image promises were rejected, it's a critical failure.
+        const allImagesFailed = imageResults.every(r => r.status === 'rejected');
+        if (allImagesFailed && imageResults.length > 0) {
+            const firstError = (imageResults[0] as PromiseRejectedResult).reason;
+            throw firstError; // This will be caught by the outer try...catch
+        }
 
-        newStory = {
-            ...newStory,
-            scenes: newStory.scenes.map((scene, i) => ({ ...scene, imageUrl: imageUrls[i] }))
-        };
+        const updatedScenes = newStory.scenes.map((scene, i) => {
+            const result = imageResults[i];
+            return {
+                ...scene,
+                imageUrl: result.status === 'fulfilled' ? result.value : undefined
+            };
+        });
+        newStory = { ...newStory, scenes: updatedScenes };
         setStory(newStory);
 
+        // --- ROBUST CHARACTER PORTRAIT GENERATION ---
         setLoadingState('generating_characters');
         const characterImagePromises = newStory.characters.map(char => generateCharacterImage(char.description));
-        const characterImageUrls = await Promise.all(characterImagePromises);
+        const characterImageResults = await Promise.allSettled(characterImagePromises);
         
-        newStory = {
-            ...newStory,
-            characters: newStory.characters.map((char, i) => ({ ...char, imageUrl: characterImageUrls[i] }))
-        }
+        // We can also check for critical failure here, but it's less likely to be a new error.
+        // For simplicity, we'll allow these to fail gracefully.
+        
+        const updatedCharacters = newStory.characters.map((char, i) => {
+            const result = characterImageResults[i];
+            return {
+                ...char,
+                imageUrl: result.status === 'fulfilled' ? result.value : undefined
+            };
+        });
+        newStory = { ...newStory, characters: updatedCharacters };
         setStory(newStory);
 
         setLoadingState('done');
 
       } catch (err) {
+        // This will now display the user-friendly error from the service
         setErrorMessage(err instanceof Error ? err.message : 'An unknown error occurred.');
         setLoadingState('error');
       }
@@ -175,8 +197,8 @@ const StoryScreen: React.FC = () => {
     if (loadingState === 'error') {
       return (
         <div className="p-8 text-center text-red-600">
-          <h2 className="text-2xl font-bold mb-4">Oh no!</h2>
-          <p>{errorMessage}</p>
+          <h2 className="text-2xl font-bold mb-4">Oh no! Something went wrong.</h2>
+          <p className="text-gray-700 bg-red-100 p-3 rounded-lg">{errorMessage}</p>
           <button onClick={() => navigate('/')} className="mt-6 px-6 py-2 bg-orange-500 text-white rounded-full">Try Again</button>
         </div>
       );
@@ -224,32 +246,30 @@ const StoryScreen: React.FC = () => {
                  <button 
                     onClick={goToPrevScene} 
                     disabled={currentSceneIndex <= 0}
-                    className="p-3 bg-white/80 rounded-full shadow-lg backdrop-blur-sm transform hover:scale-105 transition-transform disabled:opacity-30 disabled:cursor-not-allowed"
-                    aria-label="Previous scene"
-                 >
-                    <ArrowLeftIcon className="text-orange-500 w-8 h-8" />
+                    className="p-3 bg-white/60 rounded-full text-gray-700 backdrop-blur-md shadow-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/90 transition-all"
+                  >
+                    <ArrowLeftIcon className="w-7 h-7" />
                  </button>
-                 <button onClick={handlePlayPause} className="p-3 bg-white/80 rounded-full shadow-lg backdrop-blur-sm transform hover:scale-105 transition-transform">
-                    {isSpeaking ? <PauseIcon className="text-orange-500 w-12 h-12" /> : <PlayIcon className="text-orange-500 w-12 h-12" />}
+                 <button onClick={handlePlayPause} className="p-3 bg-orange-500 rounded-full text-white shadow-xl transform hover:scale-110 transition-transform">
+                    {isSpeaking ? <PauseIcon className="w-10 h-10" /> : <PlayIcon className="w-10 h-10" />}
                  </button>
                  <button 
                     onClick={goToNextScene} 
-                    disabled={currentSceneIndex >= scenes.length - 1}
-                    className="p-3 bg-white/80 rounded-full shadow-lg backdrop-blur-sm transform hover:scale-105 transition-transform disabled:opacity-30 disabled:cursor-not-allowed"
-                    aria-label="Next scene"
+                    disabled={!story || currentSceneIndex >= story.scenes.length - 1}
+                    className="p-3 bg-white/60 rounded-full text-gray-700 backdrop-blur-md shadow-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/90 transition-all"
                  >
-                    <ArrowRightIcon className="text-orange-500 w-8 h-8" />
+                    <ArrowRightIcon className="w-7 h-7" />
                  </button>
                </div>
             </div>
         );
     }
     return null;
-  };
+  }
 
   return (
-    <div className="h-full w-full flex flex-col justify-center items-center overflow-hidden">
-        {renderContent()}
+    <div className="w-full h-full flex items-center justify-center">
+      {renderContent()}
     </div>
   );
 };
