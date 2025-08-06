@@ -49,12 +49,27 @@ export const generateStoryContent = async (
   characters: Omit<Character, "imageUrl">[];
 }> => {
   const prompt = `
-    Generate a short, engaging, and age-appropriate story for a ${params.age}-year-old ${params.gender}.
+    Generate a short, engaging, awe-inspiring, and age-appropriate story for a ${params.age}-year-old ${params.gender}.
     The story's theme should be "${params.theme}".
     The story must be in ${params.language}.
     It must be broken down into exactly 5 scenes, each a paragraph long.
-    Also, describe the main characters. For each character, provide a name and a detailed visual description suitable for an AI image generator. The description should be rich in visual details about appearance, clothing, and colors (e.g., 'a small, fluffy brown bear with a tiny red scarf and bright blue eyes').
-  `;
+    The story should be such that builds cognitive resilience and curiosity. Each scene must:
+	HOOK: Start in media res with awe-triggering novelty (e.g., 'The compass needle pointed up').
+	CHALLENGE: Present a tangible obstacle requiring executive function (planning, spatial navigation, or pattern recognition).
+	STRUGGLE: Show 2-3 failed attempts emphasizing growth mindset ("This path failed—what can I learn?").
+	BREAKTHROUGH: Resolve through curiosity-driven experimentation (testing hypotheses, observing closely, asking for help).
+	LINGER: End with sensory wonder + an open-ended prompt ("As the stone bridge faded... where might the next clue hide?").
+
+	Integrate:
+	Spatial language (under/over, labyrinth, spiraling)
+	Embodied cognition (textures, temperatures, balance)
+	Productive frustration (normalized struggle)
+	Stealth values (persistence/empathy shown only through actions)
+
+	Banned: Magic fixes, adult interventions, stated morals.
+	Deliver: Vivid sensory details, rhythmic pacing, and a protagonist whose agency drives discovery.
+	
+	Also, describe the main characters. For each character, provide a name and a detailed visual description suitable for an AI image generator. The description should be rich in visual details about appearance, clothing, and colors (e.g., 'a small, fluffy brown bear with a tiny red scarf and bright blue eyes'). `;
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
