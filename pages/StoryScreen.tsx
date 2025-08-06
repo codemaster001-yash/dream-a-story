@@ -5,7 +5,6 @@ import {
   generateStoryContent,
   generateImage,
   generateCharacterImage,
-  generateImagePrompt,
 } from "../services/geminiService";
 import { Story, StoryParams } from "../types";
 import Loader from "../components/Loader";
@@ -48,6 +47,9 @@ const cardVariants = {
 };
 
 const swipeConfidenceThreshold = 10000;
+const swipePower = (offset: number, velocity: number) => {
+  return Math.abs(offset) * velocity;
+};
 
 const StoryScreen: React.FC = () => {
   const location = useLocation();
@@ -57,27 +59,26 @@ const StoryScreen: React.FC = () => {
   const [story, setStory] = useState<Story | null>(
     location.state?.story || null
   );
-  const [loadingState, setLoadingState] = useState<LoadingState>("idle");
+  const [loadingState, setLoadingState] = useState<LoadingState>(
+    location.state?.story ? "done" : "idle"
+  );
   const [errorMessage, setErrorMessage] = useState("");
   const [[currentSceneIndex, direction], setPage] = useState([0, 0]);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
 
-  const scenes = useMemo(() => story?.scenes || [], [story]);
   const activeScene = useMemo(
-    () => scenes[currentSceneIndex],
-    [scenes, currentSceneIndex]
+    () => story?.scenes[currentSceneIndex],
+    [story, currentSceneIndex]
   );
 
   const paginate = useCallback(
     (newDirection: number) => {
-      if (
-        !story ||
-        (newDirection > 0 && currentSceneIndex >= story.scenes.length - 1) ||
-        (newDirection < 0 && currentSceneIndex <= 0)
-      ) {
+      if (!story) return;
+      let newIndex = currentSceneIndex + newDirection;
+      if (newIndex < 0 || newIndex >= story.scenes.length) {
         return;
       }
-      setPage([currentSceneIndex + newDirection, newDirection]);
+      setPage([newIndex, newDirection]);
     },
     [currentSceneIndex, story]
   );
@@ -87,28 +88,21 @@ const StoryScreen: React.FC = () => {
       if (currentSceneIndex < (story?.scenes.length ?? 0) - 1) {
         paginate(1);
       } else {
-        setIsAutoPlaying(false);
+        setIsAutoPlaying(false); // End of story
       }
     }
   }, [isAutoPlaying, currentSceneIndex, story, paginate]);
 
   const { speak, stop, isSpeaking } = useTextToSpeech(handleSpeechEnd);
 
+  // Effect to handle auto-playing when scene changes
   useEffect(() => {
-    // When the scene changes, stop any speech from the previous scene
-    stop();
-    // If we're in autoplay mode, start speaking the new scene's text
     if (isAutoPlaying && activeScene) {
       speak(activeScene.text);
+    } else {
+      stop(); // Stop speaking if not auto-playing (e.g., manual navigation)
     }
-  }, [currentSceneIndex, stop]); // Only depends on index and stop, not the whole activeScene object
-
-  // This effect is now solely for starting autoplay on a new scene after pagination.
-  useEffect(() => {
-    if (isAutoPlaying && activeScene && !isSpeaking) {
-      speak(activeScene.text);
-    }
-  }, [isAutoPlaying, activeScene, isSpeaking, speak]);
+  }, [activeScene, isAutoPlaying, speak, stop]); // Re-run when scene or autoplay state changes
 
   useEffect(() => {
     const generateNewStory = async (params: StoryParams) => {
@@ -120,7 +114,7 @@ const StoryScreen: React.FC = () => {
           characters: rawCharacters,
         } = await generateStoryContent(params);
 
-        let initialStory: Story = {
+        const newStory: Story = {
           id: crypto.randomUUID(),
           title,
           params,
@@ -128,94 +122,81 @@ const StoryScreen: React.FC = () => {
             ...s,
             id: crypto.randomUUID(),
             imagePrompt: "",
-            imageUrl: undefined,
-            imageError: false,
           })),
-          characters: rawCharacters.map((c) => ({
-            ...c,
-            imageUrl: undefined,
-            imageError: false,
-          })),
+          characters: rawCharacters.map((c) => ({ ...c })),
           createdAt: Date.now(),
         };
-        setStory(initialStory);
+        setStory(newStory);
         setPage([0, 0]);
 
+        // Generate images in parallel
         setLoadingState("generating_images");
-        await Promise.all(
-          initialStory.scenes.map(async (scene) => {
+        const sceneImagePromises = newStory.scenes.map(async (scene, index) => {
+          try {
+            const { imageUrl, prompt } = await generateImage(
+              scene.text,
+              newStory.characters
+            );
+            setStory((current) => {
+              if (!current) return null;
+              const updatedScenes = [...current.scenes];
+              updatedScenes[index] = {
+                ...updatedScenes[index],
+                imagePrompt: prompt,
+                imageUrl,
+              };
+              return { ...current, scenes: updatedScenes };
+            });
+          } catch (err) {
+            console.error(
+              `Failed image generation for scene ${scene.id}:`,
+              err
+            );
+            setStory((current) => {
+              if (!current) return null;
+              const updatedScenes = [...current.scenes];
+              updatedScenes[index] = {
+                ...updatedScenes[index],
+                imageError: true,
+              };
+              return { ...current, scenes: updatedScenes };
+            });
+          }
+        });
+
+        // Generate character portraits in parallel
+        setLoadingState("generating_characters");
+        const characterImagePromises = newStory.characters.map(
+          async (character, index) => {
             try {
-              const imagePrompt = await generateImagePrompt(scene.text);
-              const imageUrl = await generateImage(imagePrompt);
-              setStory((currentStory) =>
-                currentStory
-                  ? {
-                      ...currentStory,
-                      scenes: currentStory.scenes.map((s) =>
-                        s.id === scene.id ? { ...s, imagePrompt, imageUrl } : s
-                      ),
-                    }
-                  : null
+              const imageUrl = await generateCharacterImage(
+                character.description
               );
+              setStory((current) => {
+                if (!current) return null;
+                const updatedChars = [...current.characters];
+                updatedChars[index] = { ...updatedChars[index], imageUrl };
+                return { ...current, characters: updatedChars };
+              });
             } catch (err) {
               console.error(
-                `Failed image generation for scene ${scene.id}:`,
+                `Failed image for character ${character.name}:`,
                 err
               );
-              setStory((currentStory) =>
-                currentStory
-                  ? {
-                      ...currentStory,
-                      scenes: currentStory.scenes.map((s) =>
-                        s.id === scene.id ? { ...s, imageError: true } : s
-                      ),
-                    }
-                  : null
-              );
+              setStory((current) => {
+                if (!current) return null;
+                const updatedChars = [...current.characters];
+                updatedChars[index] = {
+                  ...updatedChars[index],
+                  imageError: true,
+                };
+                return { ...current, characters: updatedChars };
+              });
             }
-          })
+          }
         );
 
-        setLoadingState("generating_characters");
-        if (initialStory.characters?.length > 0) {
-          await Promise.all(
-            initialStory.characters.map(async (character) => {
-              try {
-                const imageUrl = await generateCharacterImage(
-                  character.description
-                );
-                setStory((currentStory) =>
-                  currentStory
-                    ? {
-                        ...currentStory,
-                        characters: currentStory.characters.map((c) =>
-                          c.name === character.name ? { ...c, imageUrl } : c
-                        ),
-                      }
-                    : null
-                );
-              } catch (err) {
-                console.error(
-                  `Failed image for character ${character.name}:`,
-                  err
-                );
-                setStory((currentStory) =>
-                  currentStory
-                    ? {
-                        ...currentStory,
-                        characters: currentStory.characters.map((c) =>
-                          c.name === character.name
-                            ? { ...c, imageError: true }
-                            : c
-                        ),
-                      }
-                    : null
-                );
-              }
-            })
-          );
-        }
-
+        await Promise.all([...sceneImagePromises, ...characterImagePromises]);
         setLoadingState("completed");
       } catch (err) {
         setErrorMessage(
@@ -227,33 +208,26 @@ const StoryScreen: React.FC = () => {
 
     if (location.state?.params && !story) {
       generateNewStory(location.state.params);
-    } else if (story) {
-      setPage([0, 0]);
-      setLoadingState("done");
-    } else {
+    } else if (!location.state?.story && !location.state?.params) {
       navigate("/");
     }
   }, [location.state, navigate, story]);
 
+  // Effect to save the story once generation is complete
   useEffect(() => {
     if (loadingState === "completed" && story) {
       saveStory(story);
-      const timer = setTimeout(() => setLoadingState("done"), 1500);
+      const timer = setTimeout(() => setLoadingState("done"), 1500); // Show "All done!" for a bit
       return () => clearTimeout(timer);
     }
   }, [loadingState, story, saveStory]);
 
   const handlePlayPause = () => {
-    if (isSpeaking) {
-      // If it's speaking, stop it.
-      stop();
+    if (isAutoPlaying) {
       setIsAutoPlaying(false);
+      stop();
     } else {
-      // If it's not speaking, start auto-play.
       setIsAutoPlaying(true);
-      if (activeScene) {
-        speak(activeScene.text);
-      }
     }
   };
 
@@ -264,7 +238,7 @@ const StoryScreen: React.FC = () => {
   };
 
   const handleDragEnd = (_: any, { offset, velocity }: PanInfo) => {
-    const swipe = Math.abs(offset.x) * velocity.x;
+    const swipe = swipePower(offset.x, velocity.x);
     if (swipe < -swipeConfidenceThreshold) {
       paginate(1);
     } else if (swipe > swipeConfidenceThreshold) {
@@ -281,7 +255,7 @@ const StoryScreen: React.FC = () => {
       case "generating_characters":
         return "Bringing characters to life...";
       case "completed":
-        return "All done!";
+        return "All done! Saving your story...";
       default:
         return "Getting things ready...";
     }
@@ -311,7 +285,7 @@ const StoryScreen: React.FC = () => {
         </div>
       );
     }
-    if (story) {
+    if (story && activeScene) {
       return (
         <div className="w-full h-full flex flex-col">
           <header className="p-4 pr-20 flex justify-between items-center text-gray-700 flex-shrink-0">
@@ -341,28 +315,30 @@ const StoryScreen: React.FC = () => {
             </button>
           </header>
 
-          <main className="flex-grow relative overflow-hidden">
-            <AnimatePresence initial={false} custom={direction}>
-              <motion.div
-                key={currentSceneIndex}
-                className="absolute w-full h-full p-4 sm:p-6"
-                custom={direction}
-                variants={cardVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{
-                  x: { type: "spring", stiffness: 350, damping: 35 },
-                  opacity: { duration: 0.2 },
-                }}
-                drag="x"
-                dragConstraints={{ left: 0, right: 0 }}
-                dragElastic={0.2}
-                onDragEnd={handleDragEnd}
-              >
-                {activeScene && <SceneCard scene={activeScene} />}
-              </motion.div>
-            </AnimatePresence>
+          <main className="flex-grow flex items-center justify-center overflow-hidden p-4 sm:p-6">
+            <div className="w-full h-full relative">
+              <AnimatePresence initial={false} custom={direction}>
+                <motion.div
+                  key={activeScene.id}
+                  className="absolute w-full h-full"
+                  custom={direction}
+                  variants={cardVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{
+                    x: { type: "spring", stiffness: 300, damping: 30 },
+                    opacity: { duration: 0.2 },
+                  }}
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.1}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SceneCard scene={activeScene} />
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </main>
 
           <footer className="p-4 flex justify-around items-center w-full max-w-xs mx-auto flex-shrink-0 mb-2">
@@ -379,7 +355,7 @@ const StoryScreen: React.FC = () => {
               className="p-3 bg-orange-500 rounded-full text-white shadow-xl transform hover:scale-110 transition-transform"
               aria-label={isSpeaking ? "Pause narration" : "Play narration"}
             >
-              {isSpeaking ? (
+              {isAutoPlaying ? (
                 <PauseIcon className="w-10 h-10" />
               ) : (
                 <PlayIcon className="w-10 h-10" />

@@ -126,34 +126,31 @@ export const generateStoryContent = async (
   }
 };
 
-// Phase 2a: Generate an image prompt from the scene text.
-export const generateImagePrompt = async (
-  sceneText: string
-): Promise<string> => {
-  const prompt = `Based on the following story scene, create a short, descriptive prompt for an image generation AI. The prompt should capture the main action, characters, and setting in a simple phrase. Do not include any extra explanatory text.
-    
-    Scene: "${sceneText}"
-    
-    Prompt:`;
-  try {
-    const response = await ai.models.generateContent({
-      model: storyGenerationModel,
-      contents: prompt,
-    });
-    return response.text.trim();
-  } catch (error) {
-    console.error("Failed to generate image prompt", error);
-    throw new Error(handleGoogleAIError(error));
-  }
-};
+// Phase 2: Generate the scene image from text, injecting character details for consistency.
+export const generateImage = async (
+  sceneText: string,
+  allStoryCharacters: Character[]
+): Promise<{ prompt: string; imageUrl: string }> => {
+  // Find which characters from the story are mentioned in this specific scene.
+  const charactersInScene = allStoryCharacters.filter((character) =>
+    sceneText.toLowerCase().includes(character.name.toLowerCase())
+  );
 
-// Phase 2b: Generate the actual image from a prompt.
-export const generateImage = async (prompt: string): Promise<string> => {
-  const fullPrompt = `charming storybook style, ${prompt}, in the style of a vibrant and whimsical children's book illustration, family-friendly, G-rated, safe-for-children, colorful, friendly characters, soft lighting, detailed and magical.`;
+  // Create a string of character descriptions to guide the AI.
+  const characterDescriptions = charactersInScene
+    .map((c) => c.description)
+    .join(", ");
+  const characterPromptPart = characterDescriptions
+    ? `, featuring ${characterDescriptions}`
+    : "";
+
+  // Construct the final, detailed prompt for the image generation model.
+  const finalPrompt = `charming children's book illustration of: ${sceneText}${characterPromptPart}. Style: vibrant and whimsical, family-friendly, G-rated, safe-for-children, colorful, soft lighting, detailed and magical.`;
+
   try {
     const response = await ai.models.generateImages({
       model: imageGenerationModel,
-      prompt: fullPrompt,
+      prompt: finalPrompt,
       config: {
         numberOfImages: 1,
         outputMimeType: "image/jpeg",
@@ -162,12 +159,18 @@ export const generateImage = async (prompt: string): Promise<string> => {
     });
 
     if (response.generatedImages && response.generatedImages.length > 0) {
-      return `data:image/jpeg;base64,${response.generatedImages[0].image.imageBytes}`;
+      return {
+        prompt: finalPrompt,
+        imageUrl: `data:image/jpeg;base64,${response.generatedImages[0].image.imageBytes}`,
+      };
     } else {
       throw new Error("API returned no images for the prompt.");
     }
   } catch (error) {
-    console.error(`Failed to generate image for prompt "${prompt}"`, error);
+    console.error(
+      `Failed to generate image for prompt "${finalPrompt}"`,
+      error
+    );
     throw new Error(handleGoogleAIError(error));
   }
 };
