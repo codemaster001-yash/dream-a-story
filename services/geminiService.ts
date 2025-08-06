@@ -1,5 +1,4 @@
 
-
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { StoryParams, Scene, Character } from '../types';
 
@@ -24,23 +23,27 @@ const handleGoogleAIError = (error: any): string => {
     if (errorMessage.toLowerCase().includes("safety")) {
         return "The request was blocked due to safety settings. Please try a different theme or prompt.";
     }
+    if (errorMessage.toLowerCase().includes("user location is not supported")) {
+        return "This service is not available in your location.";
+    }
     if (errorMessage.includes("400")) {
         return "The request was malformed. This might be a temporary issue, please try again.";
     }
-
-    // Return the original error message instead of a generic one.
-    return errorMessage;
+    return `An unexpected error occurred: ${errorMessage}`;
 };
 
 
-export const generateStoryContent = async (params: StoryParams): Promise<{title: string; scenes: Omit<Scene, 'id' | 'imageUrl'>[]; characters: Omit<Character, 'imageUrl'>[]}> => {
+// Phase 1: Generate only the text content of the story.
+export const generateStoryContent = async (params: StoryParams): Promise<{title: string; scenes: Pick<Scene, 'text'>[]; characters: Omit<Character, 'imageUrl'>[]}> => {
   const prompt = `
     Generate a short, engaging, and age-appropriate story for a ${params.age}-year-old ${params.gender}. The story's theme should be "${params.theme}".
-    The story must have a clear beginning, a rising action, a climax/twist, a falling action, and a simple, positive moral at the end.
-    The story should be broken down into 4 to 6 scenes.
-    The tone should be magical, heartwarming, and full of wonder.
+    The story must be broken down into exactly 5 scenes, each with a paragraph of text.
     The story must be in ${params.language}.
-    Structure the output as a single JSON object with the following keys: "title" (a string), "scenes" (an array of objects, where each object has "text" and "imagePrompt" string keys), and "characters" (an array of objects, where each object has "name" and "description" string keys). Do not include any other text or markdown formatting outside of the JSON object.
+    Structure the output as a single JSON object with three keys: 
+    1. "title": a string for the story's title.
+    2. "scenes": an array of 5 objects, where each object has only one key "text" (a string for the scene's paragraph).
+    3. "characters": an array of main character objects, where each object has "name" and "description" string keys.
+    Do not include any other text or markdown formatting outside of this single JSON object.
   `;
 
   try {
@@ -50,43 +53,51 @@ export const generateStoryContent = async (params: StoryParams): Promise<{title:
     });
 
     const rawText = response.text.trim();
-    let jsonString = rawText;
-
-    // Find the start and end of the JSON object, even if it's wrapped in other text or markdown.
     const jsonStartIndex = rawText.indexOf('{');
     const jsonEndIndex = rawText.lastIndexOf('}');
 
     if (jsonStartIndex !== -1 && jsonEndIndex !== -1 && jsonEndIndex > jsonStartIndex) {
-        jsonString = rawText.substring(jsonStartIndex, jsonEndIndex + 1);
-    } else {
-        // If we can't find a JSON-like structure, we can't proceed.
-        throw new Error("The AI's response did not contain a readable story format.");
-    }
-    
-    try {
-        const parsed = JSON.parse(jsonString);
-        // Validate response structure
-        if (!parsed.title || !Array.isArray(parsed.scenes) || !Array.isArray(parsed.characters)) {
-            throw new Error("Invalid story structure received from API.");
+        const jsonString = rawText.substring(jsonStartIndex, jsonEndIndex + 1);
+        try {
+            const parsed = JSON.parse(jsonString);
+            if (!parsed.title || !Array.isArray(parsed.scenes) || !Array.isArray(parsed.characters)) {
+                throw new Error("Invalid story structure received from API.");
+            }
+            return parsed;
+        } catch (parseError) {
+            console.error("Failed to parse JSON from AI response:", parseError, "Raw Text:", rawText);
+            throw new Error("The AI's response was not in a readable story format.");
         }
-        return parsed;
-    } catch (parseError) {
-        console.error("Failed to parse JSON from AI response:", parseError);
-        console.error("Original AI response text:", rawText);
-        throw new Error("The AI's response was not in a readable story format.");
+    } else {
+      throw new Error("The AI's response did not contain a readable story format.");
     }
-
   } catch (error) {
-    // If it's one of our specific errors, pass it through. Otherwise, use the handler.
-    if (error.message.startsWith("The AI's response") || error.message.startsWith("Invalid story structure")) {
-      throw error;
-    }
     throw new Error(handleGoogleAIError(error));
   }
 };
 
+// Phase 2a: Generate an image prompt from the scene text.
+export const generateImagePrompt = async (sceneText: string): Promise<string> => {
+    const prompt = `Based on the following story scene, create a short, descriptive prompt for an image generation AI. The prompt should capture the main action, characters, and setting in a simple phrase. Do not include any extra explanatory text.
+    
+    Scene: "${sceneText}"
+    
+    Prompt:`;
+    try {
+        const response = await ai.models.generateContent({
+            model: storyGenerationModel,
+            contents: prompt,
+        });
+        return response.text.trim();
+    } catch(error) {
+        console.error("Failed to generate image prompt", error);
+        throw new Error(handleGoogleAIError(error));
+    }
+};
+
+
+// Phase 2b: Generate the actual image from a prompt.
 export const generateImage = async (prompt: string): Promise<string> => {
-    // Enhanced prompt for better safety and style consistency.
     const fullPrompt = `charming storybook style, ${prompt}, in the style of a vibrant and whimsical children's book illustration, family-friendly, G-rated, safe-for-children, colorful, friendly characters, soft lighting, detailed and magical.`;
     try {
         const response = await ai.models.generateImages({
@@ -100,20 +111,18 @@ export const generateImage = async (prompt: string): Promise<string> => {
         });
 
         if (response.generatedImages && response.generatedImages.length > 0) {
-            const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-            return `data:image/jpeg;base64,${base64ImageBytes}`;
+            return `data:image/jpeg;base64,${response.generatedImages[0].image.imageBytes}`;
         } else {
             throw new Error("API returned no images for the prompt.");
         }
     } catch (error) {
         console.error(`Failed to generate image for prompt "${prompt}"`, error);
-        // Re-throw a new error with a user-friendly message.
         throw new Error(handleGoogleAIError(error));
     }
 };
 
+// Phase 3: Generate character portraits.
 export const generateCharacterImage = async (description: string): Promise<string> => {
-    // Enhanced prompt for safety and consistency.
     const prompt = `Cute character portrait of ${description}, family-friendly, G-rated, safe-for-children, circular frame, whimsical children's book illustration style, charming, vibrant colors, simple background.`;
      try {
         const response = await ai.models.generateImages({
@@ -127,14 +136,12 @@ export const generateCharacterImage = async (description: string): Promise<strin
         });
 
         if (response.generatedImages && response.generatedImages.length > 0) {
-            const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-            return `data:image/jpeg;base64,${base64ImageBytes}`;
+            return `data:image/jpeg;base64,${response.generatedImages[0].image.imageBytes}`;
         } else {
             throw new Error("API returned no images for the character description.");
         }
     } catch (error) {
         console.error(`Failed to generate character image for description "${description}"`, error);
-        // Re-throw a new error with a user-friendly message.
         throw new Error(handleGoogleAIError(error));
     }
 }
