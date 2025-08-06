@@ -1,4 +1,5 @@
 
+
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { StoryParams, Scene, Character } from '../types';
 
@@ -47,7 +48,6 @@ export const generateStoryContent = async (params: StoryParams): Promise<{title:
       model: storyGenerationModel,
       contents: prompt,
       config: {
-        responseMimeType: "application/json",
         temperature: 0.8,
       },
     });
