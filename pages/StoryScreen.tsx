@@ -66,8 +66,8 @@ const StoryScreen: React.FC = () => {
             id: `${Date.now()}`,
             title,
             params,
-            scenes: rawScenes.map((s, i) => ({ ...s, id: `${Date.now()}-s-${i}`, imagePrompt: '', imageUrl: undefined })),
-            characters: rawCharacters.map((c, i) => ({...c, id: `${Date.now()}-c-${i}`, imageUrl: undefined})),
+            scenes: rawScenes.map((s, i) => ({ ...s, id: `${Date.now()}-s-${i}`, imagePrompt: '', imageUrl: undefined, imageError: false })),
+            characters: rawCharacters.map((c, i) => ({...c, id: `${Date.now()}-c-${i}`, imageUrl: undefined, imageError: false})),
             createdAt: Date.now()
         };
         setStory(initialStory);
@@ -92,6 +92,11 @@ const StoryScreen: React.FC = () => {
                 });
             } catch (err) {
                 console.error(`Failed to generate image for scene ${scene.id}:`, err);
+                setStory(currentStory => {
+                    if (!currentStory) return null;
+                    const updatedScenes = currentStory.scenes.map(s => s.id === scene.id ? { ...s, imageError: true } : s);
+                    return { ...currentStory, scenes: updatedScenes };
+                });
             }
         }
         
@@ -107,6 +112,11 @@ const StoryScreen: React.FC = () => {
                 });
             } catch (err) {
                 console.error(`Failed to generate image for character ${character.name}:`, err);
+                 setStory(currentStory => {
+                    if (!currentStory) return null;
+                    const updatedCharacters = currentStory.characters.map(c => c.name === character.name ? { ...c, imageError: true } : c);
+                    return { ...currentStory, characters: updatedCharacters };
+                });
             }
         }
 
@@ -185,7 +195,7 @@ const StoryScreen: React.FC = () => {
     if (story) {
         return (
             <div className="w-full h-full flex flex-col">
-              <div className="p-4 flex justify-between items-center text-gray-700 flex-shrink-0">
+              <div className="p-4 pr-20 flex justify-between items-center text-gray-700 flex-shrink-0">
                 <button onClick={() => navigate('/')} className="p-2 rounded-full hover:bg-gray-200/50">
                   <HomeIcon className="w-8 h-8"/>
                 </button>
@@ -194,11 +204,11 @@ const StoryScreen: React.FC = () => {
                     <HeartIcon className="w-8 h-8" isFilled={isStorySaved(story.id)}/>
                 </button>
               </div>
-              <div className="flex-grow relative">
+              <div className="flex-grow relative p-6">
                  {scenes.map((scene, index) => (
                      <motion.div
                          key={scene.id}
-                         className="absolute w-full h-full"
+                         className="absolute w-full h-full touch-pan-y"
                          drag={index === currentSceneIndex ? 'x' : false}
                          dragConstraints={{ left: 0, right: 0 }}
                          dragElastic={0.2}

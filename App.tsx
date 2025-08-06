@@ -65,7 +65,7 @@ const Main: React.FC = () => {
 
       <button 
         onClick={toggleFullScreen} 
-        className="absolute top-5 left-5 z-50 p-2.5 bg-white/60 rounded-full text-gray-700 backdrop-blur-md shadow-md hover:bg-white/90 transition-all duration-200"
+        className="absolute top-5 right-5 z-50 p-2.5 bg-white/60 rounded-full text-gray-700 backdrop-blur-md shadow-md hover:bg-white/90 transition-all duration-200"
         aria-label={isFullScreen ? 'Exit fullscreen' : 'Enter fullscreen'}
       >
         {isFullScreen ? <ShrinkIcon /> : <ExpandIcon />}

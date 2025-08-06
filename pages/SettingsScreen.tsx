@@ -9,18 +9,32 @@ const SettingsScreen: React.FC = () => {
   const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
-    const loadVoices = () => {
+    const loadAndValidateVoices = () => {
         const voiceList = window.speechSynthesis.getVoices();
-        if (voiceList.length > 0) {
-            setVoices(voiceList);
+        if (voiceList.length === 0) return;
+
+        setVoices(voiceList);
+
+        // Validate the currently selected voice from localStorage.
+        const currentURI = localStorage.getItem(VOICE_STORAGE_KEY);
+        const voiceExists = voiceList.some(v => v.voiceURI === currentURI);
+
+        // If the saved voice is not in the list or no voice is stored, set a sensible default.
+        if (!voiceExists) {
+            const defaultVoice = voiceList.find(v => v.default) || voiceList[0];
+            if (defaultVoice) {
+                setSelectedVoiceURI(defaultVoice.voiceURI);
+            }
+        } else {
+            setSelectedVoiceURI(currentURI);
         }
     };
 
-    // Voices are loaded asynchronously
+    // Voices might load asynchronously.
     if (window.speechSynthesis.getVoices().length > 0) {
-        loadVoices();
+        loadAndValidateVoices();
     } else {
-        window.speechSynthesis.onvoiceschanged = loadVoices;
+        window.speechSynthesis.onvoiceschanged = loadAndValidateVoices;
     }
     
     return () => {
