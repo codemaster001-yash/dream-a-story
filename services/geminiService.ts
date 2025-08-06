@@ -49,11 +49,11 @@ export const generateStoryContent = async (
   characters: Omit<Character, "imageUrl">[];
 }> => {
   const prompt = `
-    Generate a short, engaging, awe-inspiring, and age-appropriate story for a ${params.age}-year-old ${params.gender}.
+    Generate a engaging, awe-inspiring, and age-appropriate short story for a ${params.age}-year-old ${params.gender}.
     The story's theme should be "${params.theme}".
     The story must be in ${params.language}.
-    It must be broken down into exactly 5 scenes, each a paragraph long.
-    The story should be such that builds cognitive resilience and curiosity. Each scene must:
+    It must be broken down into exactly 5 short scenes, each a paragraph long using age appropriate vocabulary.
+    The story should be such that builds cognitive excitement and curiosity. The Story must have:
 	HOOK: Start in media res with awe-triggering novelty (e.g., 'The compass needle pointed up').
 	CHALLENGE: Present a tangible obstacle requiring executive function (planning, spatial navigation, or pattern recognition).
 	STRUGGLE: Show 2-3 failed attempts emphasizing growth mindset ("This path failed—what can I learn?").
