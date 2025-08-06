@@ -27,7 +27,8 @@ const handleGoogleAIError = (error: any): string => {
         return "The request was malformed. This might be a temporary issue, please try again.";
     }
 
-    return "An unexpected error occurred while communicating with the AI. Please try again.";
+    // Return the original error message instead of a generic one.
+    return errorMessage;
 };
 
 
