@@ -1,6 +1,5 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { StorybookIcon } from './icons/Icons';
 
 const SplashScreen: React.FC = () => {
   return (
@@ -13,7 +12,7 @@ const SplashScreen: React.FC = () => {
         initial={{ opacity: 0, scale: 0.5 }}
         animate={{ opacity: 1, scale: 1, transition: { duration: 0.7, delay: 0.2, type: 'spring' } }}
       >
-        <StorybookIcon className="w-32 h-32 text-orange-500" />
+        <img src="/logo.svg" alt="Dream a Story Logo" className="w-32 h-32" />
       </motion.div>
       <motion.h1
         className="text-4xl font-extrabold text-orange-600 mt-6"
