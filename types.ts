@@ -1,7 +1,7 @@
 export enum Gender {
-  BOY = 'boy',
-  GIRL = 'girl',
-  UNSPECIFIED = 'child',
+  BOY = "boy",
+  GIRL = "girl",
+  UNSPECIFIED = "child",
 }
 
 export interface StoryParams {
@@ -16,12 +16,14 @@ export interface Scene {
   text: string;
   imagePrompt: string;
   imageUrl?: string;
+  imageError?: boolean;
 }
 
 export interface Character {
   name: string;
   description: string;
   imageUrl?: string;
+  imageError?: boolean;
 }
 
 export interface Story {
