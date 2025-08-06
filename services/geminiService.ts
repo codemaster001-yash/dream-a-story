@@ -47,9 +47,6 @@ export const generateStoryContent = async (params: StoryParams): Promise<{title:
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: storyGenerationModel,
       contents: prompt,
-      config: {
-        temperature: 0.8,
-      },
     });
 
     const rawText = response.text.trim();
