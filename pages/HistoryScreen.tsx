@@ -38,13 +38,18 @@ const StoryHistoryCard: React.FC<{
         <TrashIcon />
       </button>
 
-      <div className="relative z-20 flex flex-col justify-end h-full p-3 text-white">
-        <h3 className="font-bold text-base line-clamp-3 leading-tight">
+      <div className="relative z-20 flex flex-col justify-end h-full p-4 text-white">
+        <h3 className="font-bold text-base line-clamp-3 leading-tight drop-shadow-md">
           {story.title}
         </h3>
-        <p className="text-xs capitalize truncate mt-1 opacity-90">
-          {new Date(story.createdAt).toLocaleDateString()}
-        </p>
+        <div className="flex justify-between items-center mt-2 text-xs">
+          <p className="capitalize truncate opacity-90 drop-shadow">
+            {new Date(story.createdAt).toLocaleDateString()}
+          </p>
+          <span className="bg-white/30 backdrop-blur-sm font-semibold px-2 py-0.5 rounded-full">
+            {story.params.language}
+          </span>
+        </div>
       </div>
     </div>
   );
