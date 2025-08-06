@@ -51,17 +51,38 @@ export const generateStoryContent = async (params: StoryParams): Promise<{title:
       },
     });
 
-    const jsonText = response.text.trim();
-    const parsed = JSON.parse(jsonText);
-    
-    // Validate response structure
-    if (!parsed.title || !Array.isArray(parsed.scenes) || !Array.isArray(parsed.characters)) {
-        throw new Error("Invalid story structure received from API.");
+    const rawText = response.text.trim();
+    let jsonString = rawText;
+
+    // Find the start and end of the JSON object, even if it's wrapped in other text or markdown.
+    const jsonStartIndex = rawText.indexOf('{');
+    const jsonEndIndex = rawText.lastIndexOf('}');
+
+    if (jsonStartIndex !== -1 && jsonEndIndex !== -1 && jsonEndIndex > jsonStartIndex) {
+        jsonString = rawText.substring(jsonStartIndex, jsonEndIndex + 1);
+    } else {
+        // If we can't find a JSON-like structure, we can't proceed.
+        throw new Error("The AI's response did not contain a readable story format.");
     }
     
-    return parsed;
+    try {
+        const parsed = JSON.parse(jsonString);
+        // Validate response structure
+        if (!parsed.title || !Array.isArray(parsed.scenes) || !Array.isArray(parsed.characters)) {
+            throw new Error("Invalid story structure received from API.");
+        }
+        return parsed;
+    } catch (parseError) {
+        console.error("Failed to parse JSON from AI response:", parseError);
+        console.error("Original AI response text:", rawText);
+        throw new Error("The AI's response was not in a readable story format.");
+    }
 
   } catch (error) {
+    // If it's one of our specific errors, pass it through. Otherwise, use the handler.
+    if (error.message.startsWith("The AI's response") || error.message.startsWith("Invalid story structure")) {
+      throw error;
+    }
     throw new Error(handleGoogleAIError(error));
   }
 };
