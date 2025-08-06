@@ -1,12 +1,12 @@
+
 import React, { createContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { Story } from '../types';
-
-const STORAGE_KEY = 'ai_storybook_history';
+import { initDB, saveStoryDB, getAllStoriesDB, deleteStoryDB } from '../services/dbService';
 
 interface StoryHistoryContextType {
   stories: Story[];
-  saveStory: (story: Story) => void;
-  deleteStory: (storyId: string) => void;
+  saveStory: (story: Story) => Promise<void>;
+  deleteStory: (storyId: string) => Promise<void>;
   isStorySaved: (storyId: string) => boolean;
   getStory: (storyId: string) => Story | undefined;
 }
@@ -15,49 +15,59 @@ export const StoryHistoryContext = createContext<StoryHistoryContextType | undef
 
 export const StoryHistoryProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [stories, setStories] = useState<Story[]>([]);
+  const [isDBInitialized, setIsDBInitialized] = useState(false);
 
+  // Initialize the database on component mount.
   useEffect(() => {
-    try {
-      const storedStories = localStorage.getItem(STORAGE_KEY);
-      if (storedStories) {
-        setStories(JSON.parse(storedStories));
+    const initialize = async () => {
+      try {
+        await initDB();
+        const loadedStories = await getAllStoriesDB();
+        setStories(loadedStories);
+        setIsDBInitialized(true);
+      } catch (error) {
+        console.error("Failed to initialize database and load stories:", error);
       }
-    } catch (error) {
-      console.error("Failed to load stories from localStorage", error);
-      setStories([]); // Reset to empty on error
-    }
+    };
+    initialize();
   }, []);
 
-  const updateLocalStorage = (newStories: Story[]) => {
+  const saveStory = useCallback(async (story: Story) => {
+    if (!isDBInitialized) {
+        console.error("Database not ready. Cannot save story.");
+        return;
+    }
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newStories));
+      await saveStoryDB(story);
+      // Update the local state to reflect the change immediately.
+      setStories(prevStories => {
+          const otherStories = prevStories.filter(s => s.id !== story.id);
+          return [story, ...otherStories].sort((a,b) => b.createdAt - a.createdAt);
+      });
     } catch (error) {
-      console.error("Failed to save to localStorage", error);
+      console.error("Failed to save story to database:", error);
     }
-  };
-
-  const saveStory = useCallback((story: Story) => {
-    setStories(prevStories => {
-      // Add new or update existing story
-      const newStories = [story, ...prevStories.filter(s => s.id !== story.id)];
-      updateLocalStorage(newStories);
-      return newStories;
-    });
-  }, []);
+  }, [isDBInitialized]);
   
-  const deleteStory = useCallback((storyId: string) => {
-    setStories(prevStories => {
-      const newStories = prevStories.filter(s => s.id !== storyId);
-      updateLocalStorage(newStories);
-      return newStories;
-    });
-  }, []);
+  const deleteStory = useCallback(async (storyId: string) => {
+    if (!isDBInitialized) {
+        console.error("Database not ready. Cannot delete story.");
+        return;
+    }
+    try {
+        await deleteStoryDB(storyId);
+        // Update the local state to reflect the deletion.
+        setStories(prevStories => prevStories.filter(s => s.id !== storyId));
+    } catch (error) {
+        console.error("Failed to delete story from database:", error);
+    }
+  }, [isDBInitialized]);
 
   const getStory = useCallback((storyId: string): Story | undefined => {
     return stories.find(s => s.id === storyId);
   }, [stories]);
 
-  const isStorySaved = useCallback((storyId: string): boolean => {
+  const isStorySaved = useCallback((storyId:string): boolean => {
     return stories.some(s => s.id === storyId);
   }, [stories]);
 

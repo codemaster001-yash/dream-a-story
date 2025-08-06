@@ -6,7 +6,7 @@ import {
   generateImage,
   generateCharacterImage,
 } from "../services/geminiService";
-import { Story, StoryParams } from "../types";
+import { Story, StoryParams, Character } from "../types";
 import Loader from "../components/Loader";
 import SceneCard from "../components/SceneCard";
 import { useTextToSpeech } from "../hooks/useTextToSpeech";
@@ -102,7 +102,7 @@ const StoryScreen: React.FC = () => {
     } else {
       stop(); // Stop speaking if not auto-playing (e.g., manual navigation)
     }
-  }, [activeScene, isAutoPlaying, speak, stop]); // Re-run when scene or autoplay state changes
+  }, [activeScene, isAutoPlaying, speak, stop]);
 
   useEffect(() => {
     const generateNewStory = async (params: StoryParams) => {
@@ -123,7 +123,11 @@ const StoryScreen: React.FC = () => {
             id: crypto.randomUUID(),
             imagePrompt: "",
           })),
-          characters: rawCharacters.map((c) => ({ ...c })),
+          characters: rawCharacters.map((c) => ({
+            ...c,
+            name: c.name,
+            description: c.description,
+          })),
           createdAt: Date.now(),
         };
         setStory(newStory);
@@ -315,7 +319,7 @@ const StoryScreen: React.FC = () => {
             </button>
           </header>
 
-          <main className="flex-grow flex items-center justify-center overflow-hidden p-4 sm:p-6">
+          <main className="flex-grow flex items-center justify-center overflow-hidden p-4 sm:p-6 relative">
             <div className="w-full h-full relative">
               <AnimatePresence initial={false} custom={direction}>
                 <motion.div
