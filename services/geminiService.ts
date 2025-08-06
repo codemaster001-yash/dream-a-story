@@ -49,27 +49,21 @@ export const generateStoryContent = async (
   characters: Omit<Character, "imageUrl">[];
 }> => {
   const prompt = `
-    Generate a engaging, awe-inspiring, and age-appropriate short story for a ${params.age}-year-old ${params.gender}.
-    The story's theme should be "${params.theme}".
-    The story must be in ${params.language}.
-    It must be broken down into exactly 5 short scenes, each a paragraph long using age appropriate vocabulary.
-    The story should be such that builds cognitive excitement and curiosity. The Story must have:
-	HOOK: Start in media res with awe-triggering novelty (e.g., 'The compass needle pointed up').
-	CHALLENGE: Present a tangible obstacle requiring executive function (planning, spatial navigation, or pattern recognition).
-	STRUGGLE: Show 2-3 failed attempts emphasizing growth mindset ("This path failed—what can I learn?").
-	BREAKTHROUGH: Resolve through curiosity-driven experimentation (testing hypotheses, observing closely, asking for help).
-	LINGER: End with sensory wonder + an open-ended prompt ("As the stone bridge faded... where might the next clue hide?").
+    Craft a heartwarming and thought-provoking short story for a ${params.age}-year-old ${params.gender}, written in the simple yet profound style of storytellers like Sudha Murty.
+    The story should be in ${params.language} and subtly weave in the central theme of '${params.theme}'.
 
-	Integrate:
-	Spatial language (under/over, labyrinth, spiraling)
-	Embodied cognition (textures, temperatures, balance)
-	Productive frustration (normalized struggle)
-	Stealth values (persistence/empathy shown only through actions)
+    The narrative must follow this 5 scene structure, with each part being a single, descriptive paragraph using age-appropriate language:
+    1. Begin with introducing the main character in the middle of a moment with a simple yet unusual observation that makes the reader curious. It should be something that feels both real and slightly out of place, sparking a question in the protagonist's mind. (e.g., "The shadow of the old banyan tree didn't dance like the others; it stood perfectly still.")
+    2. Introduce a clear, relatable challenge that the protagonist feels compelled to understand or solve. The challenge should require careful observation, planning, empathy or recognizing a pattern—not just physical strength.
+    3. Show the protagonist making two or three sincere attempts to solve the puzzle that don't work. Emphasize the thought process over the failure itself. Show them thinking, "That didn't work. What can I learn from that? Let me try another way." normalizing the act of trying, failing and learning.
+    4. The 'Aha!' Moment should arrive through the protagonist's own curiosity and effort. They might notice a tiny detail they missed before, try a completely new approach, or understand something by simply watching, listening, or asking someone a humble question. The breakthrough is earned, not given.
+    5. End the story not with a moral, but with a quiet, sensory moment of wonder. Close with a gentle, open-ended question that allows the reader's imagination to continue the story and reflect on the experience. (e.g., "As the sweet smell of the wet earth filled the air, he wondered how many other simple secrets the world was waiting to share.")
 
-	Banned: Magic fixes, adult interventions, stated morals.
-	Deliver: Vivid sensory details, rhythmic pacing, and a protagonist whose agency drives discovery.
-	
-	Also, describe the main characters. For each character, provide a name and a detailed visual description suitable for an AI image generator. The description should be rich in visual details about appearance, clothing, and colors (e.g., 'a small, fluffy brown bear with a tiny red scarf and bright blue eyes'). `;
+    Show, Don't Tell, Engage the Senses: Bring the world to life by describing the feel of things (e.g., the rough texture of a hand-spun rope, the warmth of a freshly made chapati, the cool surface of a brass lamp). Use simple words to describe space and direction (under the cot, behind the water pump, through the winding lane).
+    Child-like Agency: The protagonist is the hero of the story, the solution must come from their own ingenuity and observation. Adults can be present, but they should not solve the problem. Avoid any magical or unbelievable fixes.
+    Pacing and Tone: Keep the language simple, clear, and rhythmic. The tone should be one of warmth, curiosity, and exploration.
+      
+    Also, describe the main characters. For each character, provide a name and a detailed visual description suitable for an AI image generator. The description should be rich in visual details about appearance, clothing, and colors (e.g., 'a small, fluffy brown bear with a tiny red scarf and bright blue eyes'). `;
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
